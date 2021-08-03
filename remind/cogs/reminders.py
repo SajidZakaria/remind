@@ -308,6 +308,8 @@ class Reminders(commands.Cog):
         channel_id, role_id, before, localtimezone, \
             website_allowed_patterns, website_disallowed_patterns = settings
 
+        localtimezone = pytz.timezone(_TIME_ZONE)
+
         guild = self.bot.get_guild(guild_id)
         channel, role = guild.get_channel(channel_id), guild.get_role(role_id)
         for start_time, contests in self.start_time_map.items():
@@ -349,7 +351,7 @@ class Reminders(commands.Cog):
             await ctx.send(embed=discord_common.embed_neutral(empty_msg))
             return
         pages = self._make_contest_pages(
-            contests, title, self.guild_map[ctx.guild.id].localtimezone)
+            contests, title, pytz.timezone(_TIME_ZONE))
         paginator.paginate(
             self.bot,
             ctx.channel,
