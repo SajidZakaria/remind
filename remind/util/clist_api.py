@@ -3,6 +3,7 @@ import os
 import datetime as dt
 import requests
 import json
+from os import environ
 
 from remind import constants
 from discord.ext import commands
@@ -29,7 +30,7 @@ class ClientError(ClistApiError):
 
 
 def _query_api():
-    clist_token = os.getenv('CLIST_API_TOKEN')
+    clist_token = environ.get('CLIST_API_TOKEN')
     contests_start_time = dt.datetime.utcnow() - dt.timedelta(days=2)
     contests_start_time_string = contests_start_time.strftime(
         "%Y-%m-%dT%H%%3A%M%%3A%S")

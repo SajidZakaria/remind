@@ -10,6 +10,8 @@ from pathlib import Path
 from recordtype import recordtype
 import pytz
 import copy
+import psycopg2
+import jsonpickle
 
 from collections import defaultdict
 from collections import namedtuple
@@ -17,6 +19,7 @@ from collections import namedtuple
 import discord
 from discord.ext import commands
 import os
+from os import environ
 
 from remind.util.rounds import Round
 from remind.util import discord_common
@@ -30,6 +33,7 @@ _FINISHED_CONTESTS_LIMIT = 5
 _CONTEST_REFRESH_PERIOD = 10 * 60  # seconds
 _GUILD_SETTINGS_BACKUP_PERIOD = 6 * 60 * 60  # seconds
 
+_TIME_ZONE = environ.get('TIME_ZONE') or 'UTC'
 _PYTZ_TIMEZONES_GIST_URL = ('https://gist.github.com/heyalexej/'
                             '8bf688fd67d7199be4a1682b3eec7568')
 
@@ -137,8 +141,10 @@ _SUPPORTED_WEBSITES = [
 
 GuildSettings = recordtype(
     'GuildSettings', [
-        ('channel_id', None), ('role_id', None),
-        ('before', None), ('localtimezone', pytz.timezone('UTC')),
+        ('channel_id', None),
+        ('role_id', None),
+        ('before', None),
+        ('localtimezone', pytz.timezone(_TIME_ZONE)),
         ('website_allowed_patterns', defaultdict(list)),
         ('website_disallowed_patterns', defaultdict(list))])
 
@@ -170,21 +176,56 @@ class Reminders(commands.Cog):
 
         self.logger = logging.getLogger(self.__class__.__name__)
 
+        self.db_url = environ.get('DATABASE_URL')
+        self.conn = psycopg2.connect(self.db_url)
+        self.conn.rollback()
+        self.create_tables()
+
+    def create_tables(self):
+        cur = self.conn.cursor()
+
+        query = '''
+            CREATE TABLE IF NOT EXISTS remindData (
+                id INTEGER PRIMARY KEY,
+                bData TEXT
+            );
+        '''
+
+        cur.execute(query)
+        self.conn.commit()
+
+        cur.close()
+
     @commands.Cog.listener()
     @discord_common.once
     async def on_ready(self):
-        guild_map_path = Path(constants.GUILD_SETTINGS_MAP_PATH)
         try:
-            with guild_map_path.open('rb') as guild_map_file:
-                guild_map = pickle.load(guild_map_file)
-                for guild_id, guild_settings in guild_map.items():
-                    self.guild_map[guild_id] = \
-                        GuildSettings(**{key: value
-                                         for key, value
-                                         in guild_settings._asdict().items()
-                                         if key in GuildSettings._fields})
+            cur = self.conn.cursor()
+            try:
+                query = '''
+                    SELECT * FROM remindData;
+                '''
+                cur.execute(query)
+
+                record = cur.fetchall()
+                jData = record[0][1]
+
+                mp = jsonpickle.decode(jData)
+                guild_map = mp
+            except BaseException:
+                pass
+
+            for guild_id, guild_settings in guild_map.items():
+                # guild_settings['localtimezone'] = pytz.timezone('UTC')
+                self.guild_map[int(guild_id)] = \
+                    GuildSettings(**{key: value
+                                     for key, value
+                                     in guild_settings._asdict().items()
+                                     if key in GuildSettings._fields})
         except BaseException:
             pass
+        finally:
+            cur.close()
         asyncio.create_task(self._update_task())
 
     async def cog_after_invoke(self, ctx):
@@ -318,9 +359,20 @@ class Reminders(commands.Cog):
         )
 
     def _serialize_guild_map(self):
-        out_path = Path(constants.GUILD_SETTINGS_MAP_PATH)
-        with out_path.open(mode='wb') as out_file:
-            pickle.dump(self.guild_map, out_file)
+        cur = self.conn.cursor()
+
+        query = '''
+            INSERT INTO remindData (id, bData)
+            VALUES (%s, %s)
+            ON CONFLICT (id) DO UPDATE
+                SET bData = %s;
+        '''
+
+        jData = jsonpickle.encode(self.guild_map)
+        cur.execute(query, (1, jData, jData))
+
+        self.conn.commit()
+        cur.close()
 
     def _backup_serialize_guild_map(self):
         current_time_stamp = int(dt.datetime.utcnow().timestamp())
@@ -349,9 +401,9 @@ class Reminders(commands.Cog):
 
         e.g t;remind here @Subscriber 10 60 180
         """
-        if not role.mentionable:
-            raise RemindersCogError(
-                'The role for reminders must be mentionable')
+        # if not role.mentionable:
+        #     raise RemindersCogError(
+        #         'The role for reminders must be mentionable')
         if not before or any(before_mins < 0 for before_mins in before):
             raise RemindersCogError('Please provide valid `before` values')
         before = list(before)
