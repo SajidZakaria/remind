@@ -41,7 +41,7 @@ def main():
         logging.error('Token required')
         return
 
-    super_users_str = environ.get('SUPER_USERS') or [49859, 49860, 49858]
+    super_users_str = environ.get('SUPER_USERS') or '49859, 49860, 49858'
     if not super_users_str:
         logging.error('Superusers required')
         return
