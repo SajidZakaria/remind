@@ -4,7 +4,6 @@
 cd "$(dirname "$0")"
 
 while true; do
-
     python -m remind
     (( $? != 42 )) && break
 
