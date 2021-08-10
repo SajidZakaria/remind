@@ -34,7 +34,7 @@ This repository helps to run Remind in heroku . For more information about Remin
 #### Config Vars
 
 - **BOT_TOKEN**: the Discord Bot Token for your bot.
-- **CLIST_API_TOKEN**: your private clist token. Get it from [clist.by](https://clist.by/api/v2/doc/).
+- **CLIST_API_TOKEN**: your private clist token of the form `username=USERNAME&api_key=APIKEY`. Get it from [clist.by](https://clist.by/api/v2/doc/).
 - **LOGGING_COG_CHANNEL_ID**: the [Discord Channel ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) of a Discord Channel where you want error messages sent to.
 - **REMIND_MODERATOR_ROLE**: the name of the role that can run moderator commands of the bot.
 - **TIME_ZONE**: to set the default timezone. You can get the list of available timezones in [timezones.txt](https://github.com/SajidZakaria/remind/blob/master/timezones.txt)
